@@ -66,9 +66,35 @@
       <canvas id="trend"></canvas>
     </div>
 
-    <div class="card" style="grid-column:1 / -1">
-      <div class="label">Zone heatmap</div>
+    <div class="card">
+      <div class="label">Zone heatmap (who's where now)</div>
       <div class="zones" id="zones"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Conversion — footfall vs sales</div>
+      <div class="big" id="conv" style="font-size:60px">–<span style="font-size:24px">%</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="visitors">–</div><div class="l">est. visitors</div></div>
+        <div class="stat"><div class="n" id="txns">–</div><div class="l">transactions</div></div>
+        <div class="stat"><button id="sell" style="cursor:pointer;background:#1d6b56;color:#eafff7;border:0;border-radius:8px;padding:8px 12px;font-weight:700">+ Sale</button></div>
+      </div>
+      <div class="sub" style="margin-top:10px;font-size:11px">Wire <code>/api/transaction</code> to a real POS in production.</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Where they go FIRST</div>
+      <div class="zones" id="firstzone"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Attention by dwell (avg seconds per zone)</div>
+      <div class="zones" id="dwell"></div>
+    </div>
+
+    <div class="card" style="grid-column:1 / -1">
+      <div class="label">Crowd flow — top zone-to-zone movements</div>
+      <div id="flows" class="zones"></div>
     </div>
   </div>
 
@@ -110,6 +136,25 @@ function renderZones(perZone){
     </div>`).join('') || '<div class="sub">waiting for signals…</div>';
 }
 
+function renderBars(elId, obj, suffix=''){
+  const max = Math.max(...Object.values(obj), 1);
+  const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  $(elId).innerHTML = entries.map(([k,v])=>`
+    <div class="zone">
+      <div class="top"><span>${k}</span><span>${v}${suffix}</span></div>
+      <div class="bar"><i style="width:${Math.round(100*v/max)}%"></i></div>
+    </div>`).join('') || '<div class="sub">collecting…</div>';
+}
+
+function renderFlows(flows){
+  const max = Math.max(...flows.map(f=>f.count), 1);
+  $('flows').innerHTML = flows.map(f=>`
+    <div class="zone">
+      <div class="top"><span>${f.from} &nbsp;→&nbsp; ${f.to}</span><span>${f.count}</span></div>
+      <div class="bar"><i style="width:${Math.round(100*f.count/max)}%"></i></div>
+    </div>`).join('') || '<div class="sub">watching for movement…</div>';
+}
+
 let pulseOn = true;
 async function tick(){
   try {
@@ -118,11 +163,18 @@ async function tick(){
     $('unique').textContent  = d.unique_since_salt;
     $('mode').textContent    = d.mode;
     $('salt').textContent    = Math.round(d.salt_age_s);
+    $('conv').innerHTML      = d.conversion_pct + '<span style="font-size:24px">%</span>';
+    $('visitors').textContent = d.estimated_visitors;
+    $('txns').textContent    = d.transactions;
     renderZones(d.per_zone);
+    renderBars('firstzone', d.first_zone, '%');
+    renderBars('dwell', d.avg_dwell_s, 's');
+    renderFlows(d.flows);
     drawTrend(d.trend);
     pulseOn = !pulseOn; $('pulse').style.opacity = pulseOn ? 1 : .35;
   } catch(e){ /* keep last frame */ }
 }
+$('sell').addEventListener('click', ()=>fetch('/api/transaction',{method:'POST'}).then(tick));
 tick(); setInterval(tick, 2000);
 window.addEventListener('resize', ()=>fetch('/api/stats').then(r=>r.json()).then(d=>drawTrend(d.trend)));
 </script>

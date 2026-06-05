@@ -25,6 +25,7 @@ _sniffer = make_sniffer(
     lambda mac, rssi, zone: counter.observe(mac, rssi, zone),
     mode=_mode,
     iface=_iface,
+    on_transaction=counter.add_transaction,
 )
 
 _WEB = Path(__file__).parent / "web" / "index.html"
@@ -45,6 +46,14 @@ def stats() -> JSONResponse:
     data = counter.snapshot()
     data["mode"] = _mode
     return JSONResponse(data)
+
+
+@app.post("/api/transaction")
+def add_transaction(n: int = 1) -> JSONResponse:
+    """Log retail transaction(s) so conversion = transactions / visitors.
+    Wire this to a real POS webhook in production; the demo button calls n=1."""
+    counter.add_transaction(n)
+    return JSONResponse({"transactions": counter.snapshot()["transactions"]})
 
 
 @app.get("/", response_class=HTMLResponse)

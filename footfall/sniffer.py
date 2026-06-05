@@ -25,10 +25,13 @@ class SimulatedSniffer:
     """Generates a plausible high-street crowd so the whole stack is demo-able
     with zero hardware. Devices arrive, linger across zones, and leave."""
 
-    def __init__(self, on_observe: Observer, zones=None, base_crowd=18):
+    def __init__(self, on_observe: Observer, zones=None, base_crowd=18,
+                 on_transaction=None):
         self.on_observe = on_observe
-        self.zones = zones or ["shopfront", "crossing", "cafe", "station"]
+        # Ordered like a store: entrance first, till last.
+        self.zones = zones or ["entrance", "promo-display", "aisles", "checkout"]
         self.base_crowd = base_crowd
+        self.on_transaction = on_transaction
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -57,6 +60,9 @@ class SimulatedSniffer:
                     dev[1] = random.choice(self.zones)
                 rssi = random.randint(-85, -45)
                 self.on_observe(dev[0], rssi, dev[1])
+            # Roughly a few sales per minute, so conversion is non-trivial.
+            if self.on_transaction and random.random() < 0.15:
+                self.on_transaction(1)
             self._stop.wait(1.0)
 
 
@@ -109,9 +115,10 @@ class LiveSniffer:
         )
 
 
-def make_sniffer(on_observe: Observer, mode: str, iface: str | None):
+def make_sniffer(on_observe: Observer, mode: str, iface: str | None,
+                 on_transaction=None):
     if mode == "live":
         if not iface:
             raise ValueError("live mode requires FOOTFALL_IFACE (a monitor-mode interface)")
         return LiveSniffer(on_observe, iface)
-    return SimulatedSniffer(on_observe)
+    return SimulatedSniffer(on_observe, on_transaction=on_transaction)

@@ -73,6 +73,19 @@ reproducible in a hackathon, but they're the inspiration:
 - **CMU DensePose From WiFi (2023)** — full body surfaces from Channel State Information using 3 TX + 3 RX antennas + a graph-transformer. https://arxiv.org/pdf/2301.00250
 - Want to go deeper later (CSI motion/presence on cheap **ESP32** boards): https://github.com/espressif/esp-csi · curated list: https://github.com/NTUMARS/Awesome-WiFi-CSI-Sensing
 
+## Retail analytics it computes (all aggregate, all anonymous)
+
+- **Footfall** — live crowd estimate in the presence window.
+- **Zone heatmap** — how the crowd is distributed right now.
+- **Where they go first** — first-zone-entered distribution (is your promo display pulling people in?).
+- **Crowd flow** — top zone-to-zone movements (do people reach the back of the store?).
+- **Attention by dwell** — avg seconds per zone. This is the honest proxy for "what catches their eye" — WiFi gives *location*, not *gaze*, so longest-dwell zone ≈ what's holding attention. (True eye-tracking needs cameras.)
+- **Conversion** — `transactions ÷ estimated visitors`. POST to `/api/transaction` (or hit the **+ Sale** button) to feed sales; wire it to a real POS webhook in production. `visitor_calibration` scales raw device arrivals down to real people (MAC randomization + multi-device users inflate the raw count) — calibrate it against a manual head-count.
+
+## Why not the "see-through-walls X-ray" model?
+
+Public WiFi-pose datasets exist ([MM-Fi](https://arxiv.org/pdf/2305.10345) ~320k frames, [WiPose](https://github.com/NjtechCVLab/Wi-PoseDataset), [Person-in-WiFi-3D](https://github.com/cseeyangchen/DT-Pose)) but CSI is specific to the exact antenna geometry and room it was recorded in — a model trained on those data **won't work on your hardware/venue**. Cross-environment generalisation is an [open research problem](https://arxiv.org/pdf/2501.09411). You'd have to collect tens of thousands of labelled frames in *your* setup with a synchronised camera and train for days. Out of scope for a hackathon; the footfall/flow/conversion stack above delivers the same business value and actually runs today.
+
 ## Roadmap if you have extra time
 
 - **CSI presence panel:** flash 2× ESP32 with esp-csi, stream CSI amplitude into a "motion" widget next to the footfall count — the visual "X-ray" moment, scoped to your own booth.
