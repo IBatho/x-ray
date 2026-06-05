@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WiFi X-Ray — Anonymous Footfall</title>
+<style>
+  :root { --bg:#0a0e14; --card:#121823; --accent:#23d3a3; --accent2:#6ad; --text:#e6edf3; --dim:#7d8aa0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         background:radial-gradient(1200px 800px at 70% -10%, #142033, var(--bg)); color:var(--text); }
+  header { padding:24px 28px 8px; }
+  h1 { margin:0; font-size:20px; letter-spacing:.5px; }
+  .sub { color:var(--dim); font-size:13px; margin-top:4px; }
+  .privacy { margin:14px 28px; padding:10px 14px; border:1px solid #1d6b56; background:#0e2a23;
+             border-radius:10px; color:#9fe9d3; font-size:12.5px; }
+  .grid { display:grid; grid-template-columns:340px 1fr; gap:18px; padding:8px 28px 28px; }
+  @media (max-width:820px){ .grid{ grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid #1c2532; border-radius:16px; padding:22px; }
+  .big { font-size:84px; font-weight:800; line-height:1; color:var(--accent);
+         text-shadow:0 0 40px rgba(35,211,163,.35); }
+  .label { color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:1.5px; }
+  .stat-row { display:flex; gap:24px; margin-top:18px; }
+  .stat .n { font-size:22px; font-weight:700; }
+  .stat .l { color:var(--dim); font-size:11px; }
+  canvas { width:100%; height:180px; display:block; }
+  .zones { display:flex; flex-direction:column; gap:12px; margin-top:6px; }
+  .zone { }
+  .zone .top { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
+  .bar { height:14px; background:#0c121b; border-radius:8px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent));
+             border-radius:8px; transition:width .5s ease; }
+  .pill { font-size:11px; padding:3px 9px; border-radius:999px; border:1px solid #2a3647; color:var(--dim); }
+  .live { color:var(--accent); border-color:#1d6b56; }
+  footer { color:var(--dim); font-size:11px; padding:0 28px 28px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>📡 WiFi X-Ray — Anonymous Footfall Sensing</h1>
+    <div class="sub">Counting the crowd from ambient WiFi probe requests · no cameras · no individual tracking</div>
+  </header>
+
+  <div class="privacy">
+    🔒 <b>Privacy by design:</b> device IDs are salted-hashed and discarded; the salt rotates so no one
+    can be followed over time. Only aggregate counts are shown. Modern phones randomize their MAC — this is
+    a crowd <i>estimate</i>, not a person tracker.
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">People nearby (last 5 min)</div>
+      <div class="big" id="present">–</div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="unique">–</div><div class="l">unique this window</div></div>
+        <div class="stat"><div class="n" id="mode">–</div><div class="l">source</div></div>
+        <div class="stat"><div class="n" id="salt">–</div><div class="l">salt age (s)</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="label">Live trend</div>
+        <span class="pill live" id="pulse">● live</span>
+      </div>
+      <canvas id="trend"></canvas>
+    </div>
+
+    <div class="card" style="grid-column:1 / -1">
+      <div class="label">Zone heatmap</div>
+      <div class="zones" id="zones"></div>
+    </div>
+  </div>
+
+  <footer>For authorized, transparent footfall analytics only. Display an on-site notice when capturing live data.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function drawTrend(points){
+  const c = $('trend'), dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = w*dpr; c.height = h*dpr;
+  const x = c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
+  if(points.length < 2) return;
+  const counts = points.map(p=>p.count);
+  const max = Math.max(...counts,1), min = Math.min(...counts,0);
+  const px = i => (i/(points.length-1))*w;
+  const py = v => h-6 - ((v-min)/Math.max(max-min,1))*(h-16);
+  // area fill
+  const grad = x.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,'rgba(35,211,163,.35)'); grad.addColorStop(1,'rgba(35,211,163,0)');
+  x.beginPath(); x.moveTo(px(0),py(counts[0]));
+  counts.forEach((v,i)=>x.lineTo(px(i),py(v)));
+  x.lineTo(px(counts.length-1),h); x.lineTo(px(0),h); x.closePath();
+  x.fillStyle=grad; x.fill();
+  // line
+  x.beginPath(); x.moveTo(px(0),py(counts[0]));
+  counts.forEach((v,i)=>x.lineTo(px(i),py(v)));
+  x.strokeStyle='#23d3a3'; x.lineWidth=2; x.stroke();
+}
+
+function renderZones(perZone){
+  const total = Object.values(perZone).reduce((a,b)=>a+b,0) || 1;
+  const entries = Object.entries(perZone).sort((a,b)=>b[1]-a[1]);
+  $('zones').innerHTML = entries.map(([z,n])=>`
+    <div class="zone">
+      <div class="top"><span>${z}</span><span>${n}</span></div>
+      <div class="bar"><i style="width:${Math.round(100*n/total)}%"></i></div>
+    </div>`).join('') || '<div class="sub">waiting for signals…</div>';
+}
+
+let pulseOn = true;
+async function tick(){
+  try {
+    const r = await fetch('/api/stats'); const d = await r.json();
+    $('present').textContent = d.present;
+    $('unique').textContent  = d.unique_since_salt;
+    $('mode').textContent    = d.mode;
+    $('salt').textContent    = Math.round(d.salt_age_s);
+    renderZones(d.per_zone);
+    drawTrend(d.trend);
+    pulseOn = !pulseOn; $('pulse').style.opacity = pulseOn ? 1 : .35;
+  } catch(e){ /* keep last frame */ }
+}
+tick(); setInterval(tick, 2000);
+window.addEventListener('resize', ()=>fetch('/api/stats').then(r=>r.json()).then(d=>drawTrend(d.trend)));
+</script>
+</body>
+</html>

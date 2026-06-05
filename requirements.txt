@@ -1,0 +1,4 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+# Real capture mode only (optional on machines without a monitor-mode adapter):
+scapy>=2.5
