@@ -68,7 +68,7 @@
 
     <div class="card" style="grid-column:1 / -1">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="label">Live radar — WiFi sources around you</div>
+        <div class="label" id="radarTitle">Live radar — signals around you</div>
         <span class="pill" id="radarCount">–</span>
       </div>
       <canvas id="radar" style="height:420px"></canvas>
@@ -259,18 +259,32 @@ async function tick(){
   try {
     const r = await fetch('/api/stats'); const d = await r.json();
     $('present').textContent = d.present;
-    // Real crowd proxy on Windows: devices associated to nearby APs.
-    if (d.connected_stations != null){
-      $('stations').textContent = '≈' + d.connected_stations;
+    // Real crowd proxy: WiFi-associated devices and/or live BLE devices.
+    const wifiN = d.connected_stations, bleN = d.ble_devices;
+    if (wifiN != null && bleN != null){
+      $('stations').textContent = '≈' + (wifiN + bleN);
+      $('stationsLabel').textContent = 'devices around you (WiFi+BT)';
+    } else if (wifiN != null){
+      $('stations').textContent = '≈' + wifiN;
       $('stationsLabel').textContent = 'devices on nearby WiFi';
+    } else if (bleN != null){
+      $('stations').textContent = '≈' + bleN;
+      $('stationsLabel').textContent = 'Bluetooth devices nearby';
     } else {
       $('stations').textContent = d.unique_since_salt;
       $('stationsLabel').textContent = 'unique this window';
     }
     $('mode').textContent    = d.mode;
-    // Windows AP-scan mode senses radios, not silent pedestrians — label honestly.
-    $('presentLabel').textContent = d.mode === 'winscan'
-      ? 'WiFi sources in range (live)' : 'People nearby (last 5 min)';
+    const PRESENT_LABELS = {
+      winscan:'WiFi sources in range (live)',
+      btscan:'Bluetooth devices nearby (live)',
+      combo:'WiFi + Bluetooth signals (live)' };
+    $('presentLabel').textContent = PRESENT_LABELS[d.mode] || 'People nearby (last 5 min)';
+    const RADAR_TITLES = {
+      winscan:'Live radar — WiFi sources around you',
+      btscan:'Live radar — Bluetooth devices around you',
+      combo:'Live radar — WiFi + Bluetooth around you' };
+    $('radarTitle').textContent = RADAR_TITLES[d.mode] || 'Live radar — signals around you';
     $('salt').textContent    = Math.round(d.salt_age_s);
     $('conv').innerHTML      = d.conversion_pct + '<span style="font-size:24px">%</span>';
     $('visitors').textContent = d.estimated_visitors;

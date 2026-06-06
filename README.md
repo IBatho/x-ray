@@ -43,6 +43,27 @@ Then open **http://127.0.0.1:8000** on the same laptop. (Manual equivalent:
 > dashboard labels it "WiFi sources in range" in this mode. For true pedestrian
 > counting you need monitor mode (Linux or a USB adapter — see "Going live").
 
+## 🔵 Bluetooth movement sensing (Windows, no extra hardware)
+
+The built-in Bluetooth radio can passively scan **BLE advertisements** — earbuds,
+smartwatches, fitness bands, beacons, some phones. Unlike WiFi access points
+(which are fixed), these are *personal, moving* devices, so the radar actually
+tracks movement around you. Uses [`bleak`](https://github.com/hbldh/bleak) over
+Windows' WinRT API.
+
+```cmd
+run_bluetooth.bat        REM Bluetooth only
+run_combo.bat            REM WiFi access points + Bluetooth on one radar
+```
+
+Turn **Bluetooth ON** in Windows Settings first, then open
+**http://127.0.0.1:8000**. (Manual: `set FOOTFALL_MODE=btscan` — or `combo` —
+then `python -m uvicorn footfall.server:app`.)
+
+> Same honest framing & privacy story: BLE addresses are salted-hashed and
+> rotated, modern phones randomize their BLE address, so it's an anonymous
+> movement *estimate*. Distance comes from signal strength (approximate).
+
 ## Quick start (works with zero hardware)
 
 ```bash

@@ -225,10 +225,109 @@ class WindowsApScanner:
             self._stop.wait(self.interval_s)
 
 
+class BluetoothScanner:
+    """Real Bluetooth-LE sensing on Windows/macOS/Linux with NO extra hardware
+    beyond the built-in Bluetooth radio.
+
+    Passively listens for BLE advertisements via `bleak` (uses Windows' WinRT
+    API under the hood) and reports each advertising device's address + RSSI.
+    Unlike WiFi access points, these are mostly *personal, moving* devices —
+    earbuds, smartwatches, fitness bands, beacons, some phones — so the radar
+    actually tracks movement around you. Addresses are hashed + salt-rotated
+    by the counter, and modern phones randomize their BLE address, so this is a
+    privacy-preserving crowd/movement ESTIMATE, not a person tracker.
+    """
+
+    def __init__(self, on_observe: Observer, on_meta=None):
+        self.on_observe = on_observe
+        self.on_meta = on_meta
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    @staticmethod
+    def _rssi_to_zone(rssi: int) -> str:
+        # BLE RSSI runs roughly -30 (touching) to -100 (far room/next room).
+        if rssi >= -60:
+            return "right-here"
+        if rssi >= -78:
+            return "nearby"
+        return "far-side"
+
+    def _run(self) -> None:
+        try:
+            import asyncio
+
+            from bleak import BleakScanner
+        except Exception:
+            return  # bleak not installed; BT mode unavailable, app continues
+
+        recent: dict = {}
+
+        def _cb(device, adv) -> None:
+            rssi = int(getattr(adv, "rssi", getattr(device, "rssi", -80)) or -80)
+            addr = device.address
+            name = (getattr(adv, "local_name", None) or
+                    getattr(device, "name", None) or "BLE device")
+            recent[addr] = time.time()
+            self.on_observe(addr, rssi, self._rssi_to_zone(rssi), name)
+
+        async def _scan() -> None:
+            scanner = BleakScanner(detection_callback=_cb)
+            await scanner.start()
+            try:
+                while not self._stop.is_set():
+                    await asyncio.sleep(2.0)
+                    # Distinct devices seen in the last 30s = live BT crowd.
+                    cutoff = time.time() - 30
+                    for a, t in list(recent.items()):
+                        if t < cutoff:
+                            del recent[a]
+                    if self.on_meta:
+                        self.on_meta({"ble_devices": len(recent)})
+            finally:
+                await scanner.stop()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_scan())
+        except Exception:
+            pass  # keep the rest of the app alive if BT is off / unavailable
+
+
+class CompositeSniffer:
+    """Runs several sources at once into the same counter (e.g. WiFi + BT)."""
+
+    def __init__(self, sniffers):
+        self._sniffers = sniffers
+
+    def start(self) -> None:
+        for s in self._sniffers:
+            s.start()
+
+    def stop(self) -> None:
+        for s in self._sniffers:
+            s.stop()
+
+
 def make_sniffer(on_observe: Observer, mode: str, iface: str | None,
                  on_transaction=None, on_meta=None):
     if mode == "winscan":
         return WindowsApScanner(on_observe, on_meta=on_meta)
+    if mode == "btscan":
+        return BluetoothScanner(on_observe, on_meta=on_meta)
+    if mode == "combo":
+        # Real WiFi access points + real Bluetooth devices on one radar.
+        return CompositeSniffer([
+            WindowsApScanner(on_observe, on_meta=on_meta),
+            BluetoothScanner(on_observe, on_meta=on_meta),
+        ])
     if mode == "live":
         if not iface:
             raise ValueError("live mode requires FOOTFALL_IFACE (a monitor-mode interface)")

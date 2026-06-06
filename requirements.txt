@@ -2,3 +2,5 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 # Real capture mode only (optional on machines without a monitor-mode adapter):
 scapy>=2.5
+# Bluetooth-LE scan mode (btscan/combo) — uses the built-in Bluetooth radio:
+bleak>=0.21
