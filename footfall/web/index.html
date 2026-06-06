@@ -63,6 +63,17 @@
   .cap { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:12px; color:var(--dim); }
   .cap input { flex:1; }
   .back { cursor:pointer; font-size:13px; color:var(--accent2); }
+  .recs { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .rec { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:9px;
+         background:#0c121b; border-left:3px solid #2a3647; font-size:13.5px; line-height:1.4; }
+  .rec.do   { border-left-color:var(--bad);  }
+  .rec.watch{ border-left-color:var(--warn); }
+  .rec.good { border-left-color:var(--good); }
+  .rec .tag2 { font-size:10px; text-transform:uppercase; letter-spacing:1px; padding:2px 7px;
+               border-radius:999px; font-weight:700; white-space:nowrap; }
+  .rec.do .tag2   { background:#2a0e12; color:#ffb3bb; }
+  .rec.watch .tag2{ background:#2a210e; color:#ffd9a3; }
+  .rec.good .tag2 { background:#0e2a23; color:#9fe9d3; }
 </style>
 </head>
 <body>
@@ -121,6 +132,11 @@
   </header>
 
   <div class="grid">
+    <div class="card" id="recsCard" style="grid-column:1 / -1">
+      <div class="label">▶ Recommended actions — live</div>
+      <div id="recs" class="recs"></div>
+    </div>
+
     <div class="card">
       <div class="label" id="heroLabel">—</div>
       <div class="big" id="hero">–</div>
@@ -257,6 +273,68 @@ const capStatus = (n,c) => { const p=pct(n,c); return p>=90?'FULL':p>=70?'BUSY':
 const busyWord = (n,c) => { const p=pct(n,c); return p>=85?'Packed':p>=60?'Busy':p>=30?'Steady':'Quiet'; };
 const trendWord = d => { const t=d.trend||[]; if(t.length<2) return '—'; return t[t.length-1].count>=t[0].count?'rising':'easing'; };
 
+// ----------------------------- recommendations engine -----------------------------
+// Turns live data into plain-language INSTRUCTIONS, not charts. cls: do|watch|good.
+function recsFor(uc, d, c){
+  const n=crowd(d), tz=topZone(d), dz=topDwellZone(d), dw=topDwell(d);
+  const rising = trendWord(d)==='rising';
+  const out=[];
+  const p = c ? pct(n,c) : 0;
+  switch(uc.id){
+    case 'shopfront':
+      if(rising) out.push(['do',`Footfall is rising — get to the front and be ready to serve the rush.`]);
+      out.push([n>0?'good':'watch', n>0?`Most shoppers are in "${tz}" — put your best product and your best person there.`:`Quiet now — swap your window display and watch if more people stop (free A/B test).`]);
+      if(d.transactions>0) out.push([d.conversion_pct<20?'do':'good', `Conversion ${d.conversion_pct}% — ${d.conversion_pct<20?'you\'re drawing people but not closing. Engage browsers, check the 3pm staffing.':'solid. Keep this window/layout running.'}`]);
+      else out.push(['watch', `Tap “+ Sale” each time you sell to unlock live conversion (footfall→sales).`]);
+      break;
+    case 'queuepulse': {
+      const w=estWait(d,c);
+      out.push([w>=8?'do':w>=4?'watch':'good', w>=8?`~${w} min wait — open a second till NOW or you'll lose walk-aways.`:w>=4?`~${w} min wait — get ready to add a server.`:`~${w} min wait — flowing well, hold staff.`]);
+      if(rising) out.push(['watch',`Queue building — pre-empt it before it hits 8 min.`]);
+      break; }
+    case 'safecount':
+      out.push([p>=90?'do':p>=70?'watch':'good', p>=90?`${p}% of capacity — STOP entry, go one-in-one-out. This moment is logged for your risk-assessment file.`:p>=70?`${p}% — approaching limit. Brief door staff and slow entry.`:`${p}% — safe. Density is being logged as audit evidence.`]);
+      if(tz!=='—') out.push(['watch',`Densest area: "${tz}". Send a steward there to keep flow moving.`]);
+      break;
+    case 'busynow':
+      out.push(['good',`Publish: "${busyWord(n,c)} — ${p}% full." Put this live badge on your site/Google.`]);
+      out.push(['watch',`Per-zone: "${tz}" is busiest — nudge members to the quieter areas.`]);
+      break;
+    case 'standiq':
+      out.push([dw>0?'do':'watch', dw>0?`Visitors linger longest in "${dz}" (${dw}s) — move your demo/sales rep THERE.`:`Low dwell — add a hook (screen, giveaway, seating) to stop people.`]);
+      out.push(['good',`${d.estimated_visitors} engaged so far — screenshot this for your post-show ROI report.`]);
+      break;
+    case 'flexfloor':
+      out.push([p<25?'do':p>85?'watch':'good', p<25?`Only ${p}% utilized — you're paying rent on empty space. Consolidate floors or sublet.`:p>85?`${p}% — near full. Time to upsell more memberships or add capacity.`:`${p}% utilized — healthy.`]);
+      out.push(['watch',`Busiest area "${tz}" — focus cleaning and AC here; skip the empty zones.`]);
+      break;
+    case 'openhouse':
+      out.push([dw>0?'good':'watch', dw>0?`Viewers lingered most in the "${dz}" — tell the vendor that's the room selling the property.`:`Few viewers yet — push the listing / book more slots.`]);
+      out.push(['good',`${d.estimated_visitors} viewers logged — send the seller a "viewing interest" report.`]);
+      break;
+    case 'districtpulse':
+      out.push(['good',`Footfall index ${n}, busiest at "${tz}". Share with levy-payers as this week's high-street pulse.`]);
+      if(rising) out.push(['watch',`Footfall rising — good window to schedule a market/event to capitalise.`]);
+      break;
+    case 'dwellmap':
+      out.push([dw>0?'good':'watch', dw>0?`"${dz}" is your star exhibit (${dw}s dwell) — feature it in marketing & pitch it to sponsors.`:`Collecting dwell — give it a few minutes.`]);
+      out.push(['watch',`Low-dwell zones = candidates for re-curation or better signage.`]);
+      break;
+    case 'congregation':
+      out.push(['good',`${n} present now, ${d.unique_since_salt} seen today — grant-ready attendance, no surveillance.`]);
+      out.push(['watch',`Busiest area "${tz}" — plan seating/stewarding around it.`]);
+      break;
+    default:
+      out.push(['good', `${n} signals in range.`]);
+  }
+  return out.slice(0,3);
+}
+function renderRecs(uc,d,c){
+  const items=recsFor(uc,d,c);
+  const TAG={do:'Do now',watch:'Watch',good:'Good'};
+  $('recs').innerHTML = items.map(([cls,text])=>`<div class="rec ${cls}"><span class="tag2">${TAG[cls]}</span><span>${text}</span></div>`).join('');
+}
+
 // ----------------------------- home render -----------------------------
 function renderHome(){
   $('ucCards').innerHTML = USE_CASES.map(u=>`
@@ -369,6 +447,8 @@ async function tick(){
     // banner
     const [cls,msg]=current.banner(d,c);
     const b=$('lensBanner'); b.className='banner '+cls; b.textContent=msg;
+    // recommendations (the "act, don't just track" layer)
+    renderRecs(current, d, c);
     // status pill (capacity lenses)
     $('statusPill').innerHTML = current.cap ? `<span class="pill ${cls==='bad'?'':''}" style="border-color:${cls==='bad'?'#6b1d28':cls==='warn'?'#6b561d':'#1d6b56'};color:${cls==='bad'?'#ffb3bb':cls==='warn'?'#ffd9a3':'#9fe9d3'}">${capStatus(crowd(d),c)}</span>` : '';
     // shared panels
