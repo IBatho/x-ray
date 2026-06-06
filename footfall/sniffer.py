@@ -213,7 +213,7 @@ class WindowsApScanner:
                     if n["band"]:
                         label += " · " + n["band"]
                     self.on_observe(n["bssid"], self._pct_to_rssi(pct),
-                                    self._signal_to_zone(pct), label)
+                                    self._signal_to_zone(pct), label, "wifi")
                     total_stations += n["stations"]
                 if self.on_meta:
                     self.on_meta({
@@ -275,7 +275,7 @@ class BluetoothScanner:
             name = (getattr(adv, "local_name", None) or
                     getattr(device, "name", None) or "BLE device")
             recent[addr] = time.time()
-            self.on_observe(addr, rssi, self._rssi_to_zone(rssi), name)
+            self.on_observe(addr, rssi, self._rssi_to_zone(rssi), name, "bt")
 
         async def _scan() -> None:
             scanner = BleakScanner(detection_callback=_cb)

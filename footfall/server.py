@@ -25,7 +25,7 @@ counter = FootfallCounter()
 _mode = os.environ.get("FOOTFALL_MODE", "sim")
 _iface = os.environ.get("FOOTFALL_IFACE")
 _sniffer = make_sniffer(
-    lambda mac, rssi, zone, label="": counter.observe(mac, rssi, zone, label),
+    lambda mac, rssi, zone, label="", kind="": counter.observe(mac, rssi, zone, label, kind),
     mode=_mode,
     iface=_iface,
     on_transaction=counter.add_transaction,

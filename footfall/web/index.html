@@ -3,304 +3,393 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WiFi X-Ray — Anonymous Footfall</title>
+<title>X-Ray — anonymous crowd sensing for any space</title>
 <style>
-  :root { --bg:#0a0e14; --card:#121823; --accent:#23d3a3; --accent2:#6ad; --text:#e6edf3; --dim:#7d8aa0; }
+  :root { --bg:#0a0e14; --card:#121823; --accent:#23d3a3; --accent2:#6ad; --bt:#c98bff;
+          --text:#e6edf3; --dim:#7d8aa0; --warn:#ffb454; --bad:#ff5d6c; --good:#23d3a3; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
          background:radial-gradient(1200px 800px at 70% -10%, #142033, var(--bg)); color:var(--text); }
-  header { padding:24px 28px 8px; }
-  h1 { margin:0; font-size:20px; letter-spacing:.5px; }
+  a { color:inherit; text-decoration:none; }
+  header { padding:22px 28px 6px; display:flex; align-items:center; justify-content:space-between; }
+  h1 { margin:0; font-size:19px; letter-spacing:.4px; }
   .sub { color:var(--dim); font-size:13px; margin-top:4px; }
   .privacy { margin:14px 28px; padding:10px 14px; border:1px solid #1d6b56; background:#0e2a23;
              border-radius:10px; color:#9fe9d3; font-size:12.5px; }
   .grid { display:grid; grid-template-columns:340px 1fr; gap:18px; padding:8px 28px 28px; }
   @media (max-width:820px){ .grid{ grid-template-columns:1fr; } }
   .card { background:var(--card); border:1px solid #1c2532; border-radius:16px; padding:22px; }
-  .big { font-size:84px; font-weight:800; line-height:1; color:var(--accent);
-         text-shadow:0 0 40px rgba(35,211,163,.35); }
+  .big { font-size:78px; font-weight:800; line-height:1; color:var(--accent);
+         text-shadow:0 0 40px rgba(35,211,163,.3); }
   .label { color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:1.5px; }
-  .stat-row { display:flex; gap:24px; margin-top:18px; }
+  .stat-row { display:flex; gap:22px; margin-top:18px; flex-wrap:wrap; }
   .stat .n { font-size:22px; font-weight:700; }
   .stat .l { color:var(--dim); font-size:11px; }
   canvas { width:100%; height:180px; display:block; }
   .zones { display:flex; flex-direction:column; gap:12px; margin-top:6px; }
-  .zone { }
   .zone .top { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
   .bar { height:14px; background:#0c121b; border-radius:8px; overflow:hidden; }
   .bar > i { display:block; height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent));
              border-radius:8px; transition:width .5s ease; }
   .pill { font-size:11px; padding:3px 9px; border-radius:999px; border:1px solid #2a3647; color:var(--dim); }
   .live { color:var(--accent); border-color:#1d6b56; }
+  .btn { cursor:pointer; background:#1d6b56; color:#eafff7; border:0; border-radius:8px;
+         padding:8px 14px; font-weight:700; font-size:13px; }
+  .ghost { background:transparent; border:1px solid #2a3647; color:var(--dim); }
   footer { color:var(--dim); font-size:11px; padding:0 28px 28px; }
+
+  /* home */
+  .hero { padding:30px 28px 8px; }
+  .hero h2 { font-size:30px; margin:0 0 6px; }
+  .modes2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:8px 28px; }
+  @media (max-width:820px){ .modes2{ grid-template-columns:1fr; } }
+  .tech { background:var(--card); border:1px solid #1c2532; border-radius:14px; padding:18px 20px; }
+  .tech h3 { margin:0 0 6px; font-size:15px; }
+  .tech.wifi h3 { color:var(--accent); } .tech.bt h3 { color:var(--bt); }
+  .tech p { color:var(--dim); font-size:13px; line-height:1.5; margin:6px 0 0; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; padding:18px 28px 40px; }
+  .uc { background:var(--card); border:1px solid #1c2532; border-radius:14px; padding:18px;
+        cursor:pointer; transition:.15s; display:flex; flex-direction:column; gap:6px; }
+  .uc:hover { transform:translateY(-3px); border-color:#2c6f5c; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+  .uc .ic { font-size:26px; }
+  .uc .nm { font-weight:700; font-size:15px; }
+  .uc .tg { color:var(--dim); font-size:12px; line-height:1.4; }
+  .uc .by { margin-top:auto; font-size:11px; color:var(--accent2); padding-top:8px; }
+  .banner { margin:0 0 14px; padding:12px 16px; border-radius:10px; font-size:13px; font-weight:600;
+            border:1px solid #2a3647; }
+  .banner.good { background:#0e2a23; border-color:#1d6b56; color:#9fe9d3; }
+  .banner.warn { background:#2a210e; border-color:#6b561d; color:#ffd9a3; }
+  .banner.bad  { background:#2a0e12; border-color:#6b1d28; color:#ffb3bb; }
+  .cap { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:12px; color:var(--dim); }
+  .cap input { flex:1; }
+  .back { cursor:pointer; font-size:13px; color:var(--accent2); }
 </style>
 </head>
 <body>
+
+<!-- ============================ HOME ============================ -->
+<div id="home">
   <header>
-    <h1>📡 WiFi X-Ray — Anonymous Footfall Sensing</h1>
-    <div class="sub">Counting the crowd from ambient WiFi probe requests · no cameras · no individual tracking</div>
+    <h1>📡 X-Ray</h1>
+    <span class="pill live">● live engine</span>
   </header>
+  <div class="hero">
+    <h2>See any crowd. Watch no one.</h2>
+    <div class="sub" style="max-width:680px">
+      Real-time, anonymous crowd density &amp; movement for any space — from a laptop, with
+      <b>zero extra hardware</b>. No cameras, no apps, no installation. Pick a use case to launch a
+      live dashboard.
+    </div>
+  </div>
+
+  <div class="modes2">
+    <div class="tech wifi">
+      <h3>📶 WiFi tracking</h3>
+      <p>We read the WiFi access points around you and how many devices are connected to each one
+      (every router reports its associated-device count). That's a live, hardware-free estimate of
+      how many phones/laptops are in range — plus signal-based distance. Great for overall density.</p>
+    </div>
+    <div class="tech bt">
+      <h3>🔵 Bluetooth tracking</h3>
+      <p>We passively scan Bluetooth-LE advertisements from personal devices — earbuds, watches,
+      bands, beacons, some phones. These <i>move with people</i>, so the radar tracks movement and
+      proximity around you in real time. Great for flow, dwell and "who's near."</p>
+    </div>
+  </div>
 
   <div class="privacy">
-    🔒 <b>Privacy by design:</b> device IDs are salted-hashed and discarded; the salt rotates so no one
-    can be followed over time. Only aggregate counts are shown. Modern phones randomize their MAC — this is
-    a crowd <i>estimate</i>, not a person tracker.
+    🔒 <b>Privacy by design:</b> device IDs are salted-hashed and thrown away; the salt rotates so
+    no one can be followed over time. Only aggregate counts leave the box. Modern phones randomize
+    their MAC/BLE address — so this is an honest relative <i>density &amp; trend index</i>,
+    never an exact headcount and never a person tracker.
   </div>
+
+  <div class="label" style="padding:8px 28px 0">10 ways to deploy it</div>
+  <div class="cards" id="ucCards"></div>
+  <footer>For authorized, transparent analytics only. Display an on-site notice when sensing live.</footer>
+</div>
+
+<!-- ========================== DASHBOARD ========================== -->
+<div id="dash" style="display:none">
+  <header>
+    <div>
+      <span class="back" id="back">← all use cases</span>
+      <h1 id="ucTitle" style="margin-top:6px">—</h1>
+      <div class="sub" id="ucTag">—</div>
+    </div>
+    <span class="pill live" id="pulse">● live</span>
+  </header>
 
   <div class="grid">
     <div class="card">
-      <div class="label" id="presentLabel">People nearby (last 5 min)</div>
-      <div class="big" id="present">–</div>
-      <div class="stat-row">
-        <div class="stat"><div class="n" id="stations">–</div><div class="l" id="stationsLabel">unique this window</div></div>
-        <div class="stat"><div class="n" id="mode">–</div><div class="l">source</div></div>
-        <div class="stat"><div class="n" id="salt">–</div><div class="l">salt age (s)</div></div>
+      <div class="label" id="heroLabel">—</div>
+      <div class="big" id="hero">–</div>
+      <div id="statusPill" style="margin-top:10px"></div>
+      <div class="stat-row" id="kpis"></div>
+      <div class="cap" id="capWrap" style="display:none">
+        <span>Capacity</span>
+        <input type="range" id="capacity" min="5" max="500" value="80">
+        <span id="capVal">80</span>
       </div>
     </div>
 
     <div class="card">
+      <div id="lensBanner" class="banner good">Collecting live signals…</div>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="label">Live trend</div>
-        <span class="pill live" id="pulse">● live</span>
+        <div class="label" id="radarTitle">Live radar</div>
+        <span class="pill" id="radarCount">–</span>
       </div>
+      <canvas id="radar" style="height:380px"></canvas>
+      <div class="sub" style="font-size:11px;margin-top:6px">
+        You're at the centre; rings are estimated metres from signal strength (approximate).
+        Direction is illustrative — distance is the real signal, so dots glide as people move.
+        <span style="color:var(--accent)">●</span> WiFi · <span style="color:var(--bt)">●</span> Bluetooth.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Live trend</div>
       <canvas id="trend"></canvas>
     </div>
 
-    <div class="card" style="grid-column:1 / -1">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="label" id="radarTitle">Live radar — signals around you</div>
-        <span class="pill" id="radarCount">–</span>
-      </div>
-      <canvas id="radar" style="height:420px"></canvas>
-      <div class="sub" style="font-size:11px;margin-top:6px">
-        You are at the centre; rings are <b>estimated metres</b> (from signal
-        strength via a path-loss model — approximate, walls distort it).
-        Direction is illustrative — a single WiFi antenna can't sense bearing —
-        but distance is real, so <b>walk around and watch the dots glide in and
-        out</b>. Colour = signal band.
-      </div>
-    </div>
-
     <div class="card">
-      <div class="label">Zone heatmap (who's where now)</div>
+      <div class="label" id="zonesTitle">Zone heatmap (by proximity)</div>
       <div class="zones" id="zones"></div>
     </div>
 
-    <div class="card">
-      <div class="label">Conversion — footfall vs sales</div>
-      <div class="big" id="conv" style="font-size:60px">–<span style="font-size:24px">%</span></div>
-      <div class="stat-row">
-        <div class="stat"><div class="n" id="visitors">–</div><div class="l">est. visitors</div></div>
-        <div class="stat"><div class="n" id="txns">–</div><div class="l">transactions</div></div>
-        <div class="stat"><button id="sell" style="cursor:pointer;background:#1d6b56;color:#eafff7;border:0;border-radius:8px;padding:8px 12px;font-weight:700">+ Sale</button></div>
-      </div>
-      <div class="sub" style="margin-top:10px;font-size:11px">Wire <code>/api/transaction</code> to a real POS in production.</div>
-    </div>
-
-    <div class="card">
-      <div class="label">Where they go FIRST</div>
-      <div class="zones" id="firstzone"></div>
-    </div>
-
-    <div class="card">
+    <div class="card" id="dwellCard">
       <div class="label">Attention by dwell (avg seconds per zone)</div>
       <div class="zones" id="dwell"></div>
     </div>
 
-    <div class="card" style="grid-column:1 / -1">
-      <div class="label">Crowd flow — top zone-to-zone movements</div>
-      <div id="flows" class="zones"></div>
+    <div class="card" id="convCard" style="display:none">
+      <div class="label">Conversion — footfall vs sales</div>
+      <div class="big" id="conv" style="font-size:54px">–<span style="font-size:22px">%</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="visitors">–</div><div class="l">est. visitors</div></div>
+        <div class="stat"><div class="n" id="txns">–</div><div class="l">transactions</div></div>
+        <div class="stat"><button id="sell" class="btn">+ Sale</button></div>
+      </div>
     </div>
   </div>
-
-  <footer>For authorized, transparent footfall analytics only. Display an on-site notice when capturing live data.</footer>
+  <footer>X-Ray · anonymous crowd sensing · display an on-site notice when sensing live data.</footer>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
+const crowd = d => (d.connected_stations||0) + (d.ble_devices||0) || d.present || 0;
 
-function drawTrend(points){
-  const c = $('trend'), dpr = window.devicePixelRatio || 1;
-  const w = c.clientWidth, h = c.clientHeight;
-  c.width = w*dpr; c.height = h*dpr;
-  const x = c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
-  if(points.length < 2) return;
-  const counts = points.map(p=>p.count);
-  const max = Math.max(...counts,1), min = Math.min(...counts,0);
-  const px = i => (i/(points.length-1))*w;
-  const py = v => h-6 - ((v-min)/Math.max(max-min,1))*(h-16);
-  // area fill
-  const grad = x.createLinearGradient(0,0,0,h);
-  grad.addColorStop(0,'rgba(35,211,163,.35)'); grad.addColorStop(1,'rgba(35,211,163,0)');
-  x.beginPath(); x.moveTo(px(0),py(counts[0]));
-  counts.forEach((v,i)=>x.lineTo(px(i),py(v)));
-  x.lineTo(px(counts.length-1),h); x.lineTo(px(0),h); x.closePath();
-  x.fillStyle=grad; x.fill();
-  // line
-  x.beginPath(); x.moveTo(px(0),py(counts[0]));
-  counts.forEach((v,i)=>x.lineTo(px(i),py(v)));
-  x.strokeStyle='#23d3a3'; x.lineWidth=2; x.stroke();
+// ----------------------------- USE CASES -----------------------------
+const USE_CASES = [
+  { id:'shopfront', icon:'🛍️', name:'Shopfront', tag:'Retail footfall + conversion for indie shops & market stalls',
+    buyer:'Independent retailers · market traders',
+    heroLabel:'shoppers in store now', hero:d=>crowd(d), conv:true,
+    kpis:[['est. visitors today', d=>d.estimated_visitors], ['avg dwell', d=>topDwell(d)+'s'], ['busiest zone', d=>topZone(d)]],
+    banner:d=>{const c=crowd(d); return c>0?['good',`${c} shoppers in store · busiest at ${topZone(d)}. Staff the till for the rush.`]:['warn','Quiet right now — good time for restock or a window refresh.'];}},
+
+  { id:'queuepulse', icon:'⏱️', name:'QueuePulse', tag:'Live queue length & wait-time for cafés, street food, clinics',
+    buyer:'Cafés · street food · walk-in clinics',
+    heroLabel:'people waiting (close zone)', hero:d=>(d.per_zone&&d.per_zone['right-here'])||0,
+    cap:true, capLabel:'served per min', capDefault:3, capMin:1, capMax:30,
+    kpis:[['est. wait', (d,c)=>estWait(d,c)+' min'], ['in queue', d=>(d.per_zone&&d.per_zone['right-here'])||0], ['throughput', (d,c)=>c+'/min']],
+    banner:(d,c)=>{const w=estWait(d,c); return w>=8?['bad',`~${w} min wait — open a second till or people will walk.`]:w>=4?['warn',`~${w} min wait — keep an eye on it.`]:['good',`~${w} min wait — flowing nicely.`];}},
+
+  { id:'safecount', icon:'🛟', name:'SafeCount', tag:'Crowd-density & capacity alerts — Martyn’s Law evidence',
+    buyer:'Bars · clubs · venues · event organisers',
+    heroLabel:'people in the space', hero:d=>crowd(d),
+    cap:true, capLabel:'safe capacity', capDefault:80, capMin:10, capMax:1000,
+    kpis:[['% of capacity', (d,c)=>pct(crowd(d),c)+'%'], ['headroom', (d,c)=>Math.max(0,c-crowd(d))], ['status', (d,c)=>capStatus(crowd(d),c)]],
+    banner:(d,c)=>{const p=pct(crowd(d),c); return p>=90?['bad',`${p}% of capacity — STOP entry / one-in-one-out. Log this for your Protect Duty record.`]:p>=70?['warn',`${p}% of capacity — approaching limit, brief door staff.`]:['good',`${p}% of capacity — safe. Density logged for compliance.`];}},
+
+  { id:'busynow', icon:'📊', name:'BusyNow', tag:'Public "how busy is it right now" live widget',
+    buyer:'Gyms · cafés · bars (embed on web/Google)',
+    heroLabel:'busyness right now', heroPct:true, hero:d=>0,
+    cap:true, capLabel:'typical full', capDefault:60, capMin:5, capMax:500,
+    kpis:[['people now', d=>crowd(d)], ['vs typical full', (d,c)=>pct(crowd(d),c)+'%'], ['verdict', (d,c)=>busyWord(crowd(d),c)]],
+    banner:(d,c)=>{const p=pct(crowd(d),c); return ['good',`Embed this: "${busyWord(crowd(d),c)} — ${p}% full." Updates live, no app needed.`];}},
+
+  { id:'standiq', icon:'🎪', name:'StandIQ', tag:'Exhibition & booth engagement — dwell at your stand',
+    buyer:'Exhibitors · trade-show organisers',
+    heroLabel:'visitors at the stand', hero:d=>crowd(d),
+    kpis:[['total visitors', d=>d.estimated_visitors], ['avg dwell', d=>topDwell(d)+'s'], ['hot zone', d=>topZone(d)]],
+    banner:d=>['good',`${d.estimated_visitors} visitors engaged · ${topDwell(d)}s average dwell. Prove your stand ROI to the marketing director.`]},
+
+  { id:'flexfloor', icon:'🏢', name:'FlexFloor', tag:'Coworking & office desk / meeting-room utilization',
+    buyer:'Coworking operators · facilities managers',
+    heroLabel:'people on the floor', hero:d=>crowd(d),
+    cap:true, capLabel:'desks/seats', capDefault:40, capMin:5, capMax:300,
+    kpis:[['utilization', (d,c)=>pct(crowd(d),c)+'%'], ['free seats', (d,c)=>Math.max(0,c-crowd(d))], ['busiest area', d=>topZone(d)]],
+    banner:(d,c)=>{const p=pct(crowd(d),c); return p<25?['warn',`Only ${p}% utilized — you're paying for empty space. Consolidate or sublet.`]:['good',`${p}% utilized · busiest in ${topZone(d)}. Right-size cleaning & space.`];}},
+
+  { id:'openhouse', icon:'🏠', name:'OpenHouse', tag:'Estate-agent viewing engagement — viewers & dwell per room',
+    buyer:'Estate agents · property marketers',
+    heroLabel:'viewers in the property', hero:d=>crowd(d),
+    kpis:[['total viewers', d=>d.estimated_visitors], ['room that held them', d=>topDwell(d)>0?topDwellZone(d):'—'], ['avg dwell', d=>topDwell(d)+'s']],
+    banner:d=>['good',`${d.estimated_visitors} viewers · the ${topDwellZone(d)} held attention longest. Tell the vendor where the interest is.`]},
+
+  { id:'districtpulse', icon:'🌆', name:'DistrictPulse', tag:'High-street / BID pedestrian counting & zone flow',
+    buyer:'BIDs · councils · landlords',
+    heroLabel:'footfall index (live)', hero:d=>crowd(d),
+    kpis:[['unique today', d=>d.unique_since_salt], ['busiest zone', d=>topZone(d)], ['top flow', d=>topFlow(d)]],
+    banner:d=>['good',`Live footfall index ${crowd(d)} · busiest at ${topZone(d)}. Levy-payer-ready footfall, no cameras, no privacy risk.`]},
+
+  { id:'dwellmap', icon:'🖼️', name:'DwellMap', tag:'Museum / gallery exhibit popularity heatmap',
+    buyer:'Museums · galleries · attractions',
+    heroLabel:'visitors in the room', hero:d=>crowd(d),
+    kpis:[['most popular', d=>topDwellZone(d)], ['avg dwell', d=>topDwell(d)+'s'], ['visitors', d=>d.estimated_visitors]],
+    banner:d=>['good',`"${topDwellZone(d)}" is your star exhibit (${topDwell(d)}s dwell). Curation + sponsorship gold — and zero camera privacy worries.`]},
+
+  { id:'congregation', icon:'⛪', name:'CongregationCount', tag:'Community / faith / library attendance & trend',
+    buyer:'Faith & community centres · libraries',
+    heroLabel:'attendance now', hero:d=>crowd(d),
+    kpis:[['peak today', d=>d.unique_since_salt], ['busiest area', d=>topZone(d)], ['trend', d=>trendWord(d)]],
+    banner:d=>['good',`${crowd(d)} present · ${d.unique_since_salt} seen today. Grant-ready attendance numbers without surveilling anyone.`]},
+];
+
+// ----------------------------- helpers -----------------------------
+const topZone = d => { const e=Object.entries(d.per_zone||{}).sort((a,b)=>b[1]-a[1]); return e[0]?e[0][0]:'—'; };
+const topDwellZone = d => { const e=Object.entries(d.avg_dwell_s||{}).sort((a,b)=>b[1]-a[1]); return e[0]?e[0][0]:'—'; };
+const topDwell = d => { const v=Object.values(d.avg_dwell_s||{}); return v.length?Math.round(Math.max(...v)):0; };
+const topFlow = d => { const f=(d.flows||[])[0]; return f?`${f.from}→${f.to}`:'—'; };
+const pct = (n,c) => Math.min(999, Math.round(100*n/Math.max(1,c)));
+const estWait = (d,c) => Math.round(((d.per_zone&&d.per_zone['right-here'])||0)/Math.max(1,c));
+const capStatus = (n,c) => { const p=pct(n,c); return p>=90?'FULL':p>=70?'BUSY':'OK'; };
+const busyWord = (n,c) => { const p=pct(n,c); return p>=85?'Packed':p>=60?'Busy':p>=30?'Steady':'Quiet'; };
+const trendWord = d => { const t=d.trend||[]; if(t.length<2) return '—'; return t[t.length-1].count>=t[0].count?'rising':'easing'; };
+
+// ----------------------------- home render -----------------------------
+function renderHome(){
+  $('ucCards').innerHTML = USE_CASES.map(u=>`
+    <a class="uc" href="#/u/${u.id}">
+      <div class="ic">${u.icon}</div>
+      <div class="nm">${u.name}</div>
+      <div class="tg">${u.tag}</div>
+      <div class="by">→ ${u.buyer}</div>
+    </a>`).join('');
 }
 
-function renderZones(perZone){
-  const total = Object.values(perZone).reduce((a,b)=>a+b,0) || 1;
-  const entries = Object.entries(perZone).sort((a,b)=>b[1]-a[1]);
-  $('zones').innerHTML = entries.map(([z,n])=>`
-    <div class="zone">
-      <div class="top"><span>${z}</span><span>${n}</span></div>
-      <div class="bar"><i style="width:${Math.round(100*n/total)}%"></i></div>
-    </div>`).join('') || '<div class="sub">waiting for signals…</div>';
-}
-
-function renderBars(elId, obj, suffix=''){
-  const max = Math.max(...Object.values(obj), 1);
-  const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]);
-  $(elId).innerHTML = entries.map(([k,v])=>`
-    <div class="zone">
-      <div class="top"><span>${k}</span><span>${v}${suffix}</span></div>
-      <div class="bar"><i style="width:${Math.round(100*v/max)}%"></i></div>
-    </div>`).join('') || '<div class="sub">collecting…</div>';
-}
-
-function renderFlows(flows){
-  const max = Math.max(...flows.map(f=>f.count), 1);
-  $('flows').innerHTML = flows.map(f=>`
-    <div class="zone">
-      <div class="top"><span>${f.from} &nbsp;→&nbsp; ${f.to}</span><span>${f.count}</span></div>
-      <div class="bar"><i style="width:${Math.round(100*f.count/max)}%"></i></div>
-    </div>`).join('') || '<div class="sub">watching for movement…</div>';
-}
-
-// ---- Live radar ---------------------------------------------------------
-const ZONE_COLOR = { 'right-here':'#23d3a3', 'nearby':'#6ad', 'far-side':'#c98bff' };
-const radarState = {};          // id -> {angle, r, targetR, zone, rssi}
-
-function hashAngle(id){         // stable pseudo-direction per source
-  let h = 0; for (let i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i)) >>> 0;
-  return (h % 360) * Math.PI / 180;
-}
-// Rough distance from signal via the log-distance path-loss model.
-// d = 10^((TxRef - rssi) / (10 * n)).  TxRef ≈ rssi at 1 m, n = environment
-// factor (~2 open, ~3+ through walls). This is an ESTIMATE — multipath and
-// walls make it approximate, but it moves correctly as you walk.
-const TX_REF = -45, PATH_N = 2.6, MAX_M = 30;
-function rssiToMeters(rssi){
-  const d = Math.pow(10, (TX_REF - rssi) / (10 * PATH_N));
-  return Math.max(0.5, Math.min(MAX_M + 8, d));
-}
-function metersToRadius(m){     // linear out to MAX_M, then clamp at the edge
-  return 0.08 + Math.min(m, MAX_M) / MAX_M * 0.9;
-}
-
+// ----------------------------- radar -----------------------------
+const radarState = {};
+function hashAngle(id){ let h=0; for(let i=0;i<id.length;i++) h=(h*31+id.charCodeAt(i))>>>0; return (h%360)*Math.PI/180; }
+const TX_REF=-45, PATH_N=2.6, MAX_M=30;
+function rssiToMeters(r){ const d=Math.pow(10,(TX_REF-r)/(10*PATH_N)); return Math.max(0.5,Math.min(MAX_M+8,d)); }
+function metersToRadius(m){ return 0.08 + Math.min(m,MAX_M)/MAX_M*0.9; }
+function isBT(s){ if(s.kind) return s.kind==='bt'; return /BLE|LE$|device|watch|buds|band/i.test(s.label||''); }
 function updateRadar(sources){
-  const seen = new Set();
-  for (const s of sources){
+  const seen=new Set();
+  for(const s of sources){
     seen.add(s.id);
-    const st = radarState[s.id] || (radarState[s.id] = {
-      angle: hashAngle(s.id), r: 1.0, targetR: 1.0 });
-    st.meters = rssiToMeters(s.rssi);
-    st.targetR = metersToRadius(st.meters);
-    st.zone = s.zone; st.rssi = s.rssi; st.label = s.label || '';
+    const st=radarState[s.id]||(radarState[s.id]={angle:hashAngle(s.id),r:1,targetR:1});
+    st.meters=rssiToMeters(s.rssi); st.targetR=metersToRadius(st.meters);
+    st.zone=s.zone; st.rssi=s.rssi; st.label=s.label||''; st.bt=isBT(s);
   }
-  for (const id of Object.keys(radarState)) if(!seen.has(id)) delete radarState[id];
-  $('radarCount').textContent = sources.length + ' sources';
+  for(const id of Object.keys(radarState)) if(!seen.has(id)) delete radarState[id];
+  $('radarCount').textContent = sources.length+' signals';
 }
-
 function drawRadar(){
-  const c = $('radar'), dpr = window.devicePixelRatio || 1;
-  const w = c.clientWidth, h = c.clientHeight;
-  c.width = w*dpr; c.height = h*dpr;
-  const x = c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
-  const cx = w/2, cy = h/2, R = Math.min(w,h)/2 - 18;
-
-  // distance rings, labelled in estimated metres
-  x.strokeStyle = '#1c2532'; x.fillStyle = '#4a5870'; x.font = '10px sans-serif';
-  const ringM = [10, 20, 30];
-  for (const m of ringM){
-    const frac = metersToRadius(m);
-    x.beginPath(); x.arc(cx,cy,R*frac,0,Math.PI*2); x.stroke();
-    x.fillText('~' + m + ' m' + (m===30?'+':''), cx + 3, cy - R*frac + 12);
-  }
-  // sweep + you
-  x.strokeStyle='#16202e';
-  x.beginPath(); x.moveTo(cx-R,cy); x.lineTo(cx+R,cy); x.stroke();
+  const c=$('radar'); if(!c||$('dash').style.display==='none'){ requestAnimationFrame(drawRadar); return; }
+  const dpr=window.devicePixelRatio||1, w=c.clientWidth, h=c.clientHeight;
+  c.width=w*dpr; c.height=h*dpr;
+  const x=c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
+  const cx=w/2, cy=h/2, R=Math.min(w,h)/2-18;
+  x.strokeStyle='#1c2532'; x.fillStyle='#4a5870'; x.font='10px sans-serif';
+  for(const m of [10,20,30]){ const fr=metersToRadius(m); x.beginPath(); x.arc(cx,cy,R*fr,0,7); x.stroke(); x.fillText('~'+m+' m'+(m===30?'+':''),cx+3,cy-R*fr+12); }
+  x.strokeStyle='#16202e'; x.beginPath(); x.moveTo(cx-R,cy); x.lineTo(cx+R,cy); x.stroke();
   x.beginPath(); x.moveTo(cx,cy-R); x.lineTo(cx,cy+R); x.stroke();
-  const t = Date.now()/1000;
-  const pulse = 6 + 3*Math.sin(t*3);
-  x.beginPath(); x.arc(cx,cy,pulse+8,0,Math.PI*2);
-  x.fillStyle='rgba(35,211,163,.12)'; x.fill();
-  x.beginPath(); x.arc(cx,cy,7,0,Math.PI*2); x.fillStyle='#eafff7'; x.fill();
-  x.fillStyle='#9fe9d3'; x.font='bold 11px sans-serif';
-  x.fillText('YOU (this laptop)', cx+12, cy+4);
-
-  // dots (eased toward target radius so movement glides)
-  for (const id in radarState){
-    const st = radarState[id];
-    st.r += (st.targetR - st.r) * 0.12;
-    const px = cx + Math.cos(st.angle) * st.r * R;
-    const py = cy + Math.sin(st.angle) * st.r * R;
-    const col = ZONE_COLOR[st.zone] || '#6ad';
-    x.beginPath(); x.arc(px,py,16,0,Math.PI*2);
-    x.fillStyle = col + '22'; x.fill();           // glow
-    x.beginPath(); x.arc(px,py,6,0,Math.PI*2);
-    x.fillStyle = col; x.fill();
-    if (st.label){
-      x.fillStyle = '#cdd9e8'; x.font = 'bold 11px sans-serif';
-      x.fillText(st.label, px+9, py-3);
-    }
-    x.fillStyle = '#8da0b8'; x.font = '10px sans-serif';
-    x.fillText('≈' + st.meters.toFixed(1) + ' m', px+9, py+10);
+  const p=6+3*Math.sin(Date.now()/333);
+  x.beginPath(); x.arc(cx,cy,p+8,0,7); x.fillStyle='rgba(35,211,163,.12)'; x.fill();
+  x.beginPath(); x.arc(cx,cy,7,0,7); x.fillStyle='#eafff7'; x.fill();
+  x.fillStyle='#9fe9d3'; x.font='bold 11px sans-serif'; x.fillText('YOU',cx+12,cy+4);
+  for(const id in radarState){
+    const st=radarState[id]; st.r+=(st.targetR-st.r)*0.12;
+    const px=cx+Math.cos(st.angle)*st.r*R, py=cy+Math.sin(st.angle)*st.r*R;
+    const col=st.bt?'#c98bff':'#23d3a3';
+    x.beginPath(); x.arc(px,py,15,0,7); x.fillStyle=col+'22'; x.fill();
+    x.beginPath(); x.arc(px,py,5,0,7); x.fillStyle=col; x.fill();
+    if(st.label){ x.fillStyle='#cdd9e8'; x.font='bold 10px sans-serif'; x.fillText(st.label.slice(0,18),px+8,py-3); }
+    x.fillStyle='#8da0b8'; x.font='9px sans-serif'; x.fillText('≈'+st.meters.toFixed(1)+' m',px+8,py+9);
   }
   requestAnimationFrame(drawRadar);
 }
 requestAnimationFrame(drawRadar);
 
-let pulseOn = true;
-async function tick(){
-  try {
-    const r = await fetch('/api/stats'); const d = await r.json();
-    $('present').textContent = d.present;
-    // Real crowd proxy: WiFi-associated devices and/or live BLE devices.
-    const wifiN = d.connected_stations, bleN = d.ble_devices;
-    if (wifiN != null && bleN != null){
-      $('stations').textContent = '≈' + (wifiN + bleN);
-      $('stationsLabel').textContent = 'devices around you (WiFi+BT)';
-    } else if (wifiN != null){
-      $('stations').textContent = '≈' + wifiN;
-      $('stationsLabel').textContent = 'devices on nearby WiFi';
-    } else if (bleN != null){
-      $('stations').textContent = '≈' + bleN;
-      $('stationsLabel').textContent = 'Bluetooth devices nearby';
-    } else {
-      $('stations').textContent = d.unique_since_salt;
-      $('stationsLabel').textContent = 'unique this window';
-    }
-    $('mode').textContent    = d.mode;
-    const PRESENT_LABELS = {
-      winscan:'WiFi sources in range (live)',
-      btscan:'Bluetooth devices nearby (live)',
-      combo:'WiFi + Bluetooth signals (live)' };
-    $('presentLabel').textContent = PRESENT_LABELS[d.mode] || 'People nearby (last 5 min)';
-    const RADAR_TITLES = {
-      winscan:'Live radar — WiFi sources around you',
-      btscan:'Live radar — Bluetooth devices around you',
-      combo:'Live radar — WiFi + Bluetooth around you' };
-    $('radarTitle').textContent = RADAR_TITLES[d.mode] || 'Live radar — signals around you';
-    $('salt').textContent    = Math.round(d.salt_age_s);
-    $('conv').innerHTML      = d.conversion_pct + '<span style="font-size:24px">%</span>';
-    $('visitors').textContent = d.estimated_visitors;
-    $('txns').textContent    = d.transactions;
-    updateRadar(d.sources || []);
-    renderZones(d.per_zone);
-    renderBars('firstzone', d.first_zone, '%');
-    renderBars('dwell', d.avg_dwell_s, 's');
-    renderFlows(d.flows);
-    drawTrend(d.trend);
-    pulseOn = !pulseOn; $('pulse').style.opacity = pulseOn ? 1 : .35;
-  } catch(e){ /* keep last frame */ }
+function drawTrend(points){
+  const c=$('trend'); if(!c) return;
+  const dpr=window.devicePixelRatio||1, w=c.clientWidth, h=c.clientHeight;
+  c.width=w*dpr; c.height=h*dpr; const x=c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
+  if(points.length<2) return;
+  const cs=points.map(p=>p.count), mx=Math.max(...cs,1), mn=Math.min(...cs,0);
+  const px=i=>(i/(points.length-1))*w, py=v=>h-6-((v-mn)/Math.max(mx-mn,1))*(h-16);
+  const g=x.createLinearGradient(0,0,0,h); g.addColorStop(0,'rgba(35,211,163,.35)'); g.addColorStop(1,'rgba(35,211,163,0)');
+  x.beginPath(); x.moveTo(px(0),py(cs[0])); cs.forEach((v,i)=>x.lineTo(px(i),py(v)));
+  x.lineTo(px(cs.length-1),h); x.lineTo(px(0),h); x.closePath(); x.fillStyle=g; x.fill();
+  x.beginPath(); x.moveTo(px(0),py(cs[0])); cs.forEach((v,i)=>x.lineTo(px(i),py(v)));
+  x.strokeStyle='#23d3a3'; x.lineWidth=2; x.stroke();
 }
-$('sell').addEventListener('click', ()=>fetch('/api/transaction',{method:'POST'}).then(tick));
-tick(); setInterval(tick, 2000);
-window.addEventListener('resize', ()=>fetch('/api/stats').then(r=>r.json()).then(d=>drawTrend(d.trend)));
+function renderBars(elId,obj,suffix=''){
+  const max=Math.max(...Object.values(obj),1);
+  const e=Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  $(elId).innerHTML = e.map(([k,v])=>`<div class="zone"><div class="top"><span>${k}</span><span>${v}${suffix}</span></div><div class="bar"><i style="width:${Math.round(100*v/max)}%"></i></div></div>`).join('')||'<div class="sub">collecting…</div>';
+}
+
+// ----------------------------- router + tick -----------------------------
+let current=null, capVal={};
+function route(){
+  const m=location.hash.match(/#\/u\/(\w+)/);
+  if(m){ const uc=USE_CASES.find(u=>u.id===m[1]); if(uc){ openLens(uc); return; } }
+  $('home').style.display=''; $('dash').style.display='none'; current=null;
+}
+function openLens(uc){
+  current=uc;
+  $('home').style.display='none'; $('dash').style.display='';
+  $('ucTitle').textContent = uc.icon+' '+uc.name;
+  $('ucTag').textContent = uc.tag;
+  $('heroLabel').textContent = uc.heroLabel;
+  $('convCard').style.display = uc.conv ? '' : 'none';
+  $('capWrap').style.display = uc.cap ? 'flex' : 'none';
+  if(uc.cap){
+    const cap=$('capacity'); cap.min=uc.capMin; cap.max=uc.capMax;
+    cap.value = capVal[uc.id] || uc.capDefault; $('capVal').textContent=cap.value;
+  }
+  tick();
+}
+function getCap(){ return current&&current.cap ? Number($('capacity').value) : 0; }
+
+let pulseOn=true;
+async function tick(){
+  try{
+    const r=await fetch('/api/stats'); const d=await r.json();
+    if(!current) return;
+    const c=getCap();
+    // hero
+    let hv = current.heroPct ? pct(crowd(d),c)+'%' : current.hero(d,c);
+    $('hero').textContent = hv;
+    // kpis
+    $('kpis').innerHTML = current.kpis.map(([l,fn])=>`<div class="stat"><div class="n">${fn(d,c)}</div><div class="l">${l}</div></div>`).join('');
+    // banner
+    const [cls,msg]=current.banner(d,c);
+    const b=$('lensBanner'); b.className='banner '+cls; b.textContent=msg;
+    // status pill (capacity lenses)
+    $('statusPill').innerHTML = current.cap ? `<span class="pill ${cls==='bad'?'':''}" style="border-color:${cls==='bad'?'#6b1d28':cls==='warn'?'#6b561d':'#1d6b56'};color:${cls==='bad'?'#ffb3bb':cls==='warn'?'#ffd9a3':'#9fe9d3'}">${capStatus(crowd(d),c)}</span>` : '';
+    // shared panels
+    updateRadar(d.sources||[]);
+    renderBars('zones', d.per_zone||{}, '');
+    renderBars('dwell', d.avg_dwell_s||{}, 's');
+    drawTrend(d.trend||[]);
+    if(current.conv){
+      $('conv').innerHTML=d.conversion_pct+'<span style="font-size:22px">%</span>';
+      $('visitors').textContent=d.estimated_visitors; $('txns').textContent=d.transactions;
+    }
+    pulseOn=!pulseOn; $('pulse').style.opacity=pulseOn?1:.4;
+  }catch(e){}
+}
+$('back').addEventListener('click',()=>location.hash='');
+$('sell').addEventListener('click',()=>fetch('/api/transaction',{method:'POST'}).then(tick));
+$('capacity').addEventListener('input',()=>{ $('capVal').textContent=$('capacity').value; if(current) capVal[current.id]=$('capacity').value; tick(); });
+window.addEventListener('hashchange',route);
+
+renderHome(); route(); setInterval(tick,2000);
 </script>
 </body>
 </html>
+</content>

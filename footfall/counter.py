@@ -34,6 +34,7 @@ class _Device:
     first_zone: str
     rssi: int
     label: str = ""
+    kind: str = ""
     # Accumulated dwell time per zone for this device, this salt window.
     dwell: dict = field(default_factory=lambda: defaultdict(float))
 
@@ -83,9 +84,10 @@ class FootfallCounter:
         return hashlib.sha256(self._salt + mac.encode("utf-8")).hexdigest()[:16]
 
     def observe(self, mac: str, rssi: int = -70, zone: str = "main",
-                label: str = "") -> None:
+                label: str = "", kind: str = "") -> None:
         """Record one probe-request sighting. `mac` is hashed and discarded.
-        `label` is an optional non-identifying display name (e.g. WiFi SSID)."""
+        `label` is an optional non-identifying display name (e.g. WiFi SSID);
+        `kind` is 'wifi' or 'bt' for the radar to colour by source type."""
         now = time.time()
         with self._lock:
             self._maybe_rotate_salt(now)
@@ -94,7 +96,8 @@ class FootfallCounter:
             if dev is None:
                 # New arrival.
                 dev = _Device(first_seen=now, last_seen=now, zone=zone,
-                              first_zone=zone, rssi=rssi, label=label or "")
+                              first_zone=zone, rssi=rssi, label=label or "",
+                              kind=kind or "")
                 self._devices[h] = dev
                 self._arrivals += 1
                 self._first_zone[zone] += 1
@@ -155,7 +158,8 @@ class FootfallCounter:
             # linked across salt windows or back to a device. rssi drives the
             # signal-based distance; zone gives the colour bucket.
             sources = [
-                {"id": h, "rssi": d.rssi, "zone": d.zone, "label": d.label}
+                {"id": h, "rssi": d.rssi, "zone": d.zone,
+                 "label": d.label, "kind": d.kind}
                 for h, d in self._devices.items()
             ]
 
