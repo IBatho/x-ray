@@ -73,10 +73,11 @@
       </div>
       <canvas id="radar" style="height:420px"></canvas>
       <div class="sub" style="font-size:11px;margin-top:6px">
-        You are at the centre. Distance = live signal strength (stronger = closer);
-        rings are signal bands. Direction is illustrative — a single WiFi antenna
-        can't sense bearing — but distances are real, so <b>walk around and watch the
-        dots glide in and out</b>. Colour = signal band.
+        You are at the centre; rings are <b>estimated metres</b> (from signal
+        strength via a path-loss model — approximate, walls distort it).
+        Direction is illustrative — a single WiFi antenna can't sense bearing —
+        but distance is real, so <b>walk around and watch the dots glide in and
+        out</b>. Colour = signal band.
       </div>
     </div>
 
@@ -177,9 +178,17 @@ function hashAngle(id){         // stable pseudo-direction per source
   let h = 0; for (let i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i)) >>> 0;
   return (h % 360) * Math.PI / 180;
 }
-function rssiToRadius(rssi){    // stronger signal -> closer to centre
-  const strength = Math.max(0, Math.min(1, (rssi + 95) / 55)); // -95..-40
-  return 0.10 + (1 - strength) * 0.86;   // 0=centre .. 1=edge
+// Rough distance from signal via the log-distance path-loss model.
+// d = 10^((TxRef - rssi) / (10 * n)).  TxRef ≈ rssi at 1 m, n = environment
+// factor (~2 open, ~3+ through walls). This is an ESTIMATE — multipath and
+// walls make it approximate, but it moves correctly as you walk.
+const TX_REF = -45, PATH_N = 2.6, MAX_M = 30;
+function rssiToMeters(rssi){
+  const d = Math.pow(10, (TX_REF - rssi) / (10 * PATH_N));
+  return Math.max(0.5, Math.min(MAX_M + 8, d));
+}
+function metersToRadius(m){     // linear out to MAX_M, then clamp at the edge
+  return 0.08 + Math.min(m, MAX_M) / MAX_M * 0.9;
 }
 
 function updateRadar(sources){
@@ -188,7 +197,8 @@ function updateRadar(sources){
     seen.add(s.id);
     const st = radarState[s.id] || (radarState[s.id] = {
       angle: hashAngle(s.id), r: 1.0, targetR: 1.0 });
-    st.targetR = rssiToRadius(s.rssi);
+    st.meters = rssiToMeters(s.rssi);
+    st.targetR = metersToRadius(st.meters);
     st.zone = s.zone; st.rssi = s.rssi;
   }
   for (const id of Object.keys(radarState)) if(!seen.has(id)) delete radarState[id];
@@ -202,12 +212,13 @@ function drawRadar(){
   const x = c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
   const cx = w/2, cy = h/2, R = Math.min(w,h)/2 - 18;
 
-  // rings + band labels
+  // distance rings, labelled in estimated metres
   x.strokeStyle = '#1c2532'; x.fillStyle = '#4a5870'; x.font = '10px sans-serif';
-  const bands = [['right-here',0.33],['nearby',0.66],['far-side',1.0]];
-  for (const [name,frac] of bands){
+  const ringM = [10, 20, 30];
+  for (const m of ringM){
+    const frac = metersToRadius(m);
     x.beginPath(); x.arc(cx,cy,R*frac,0,Math.PI*2); x.stroke();
-    x.fillText(name, cx + 3, cy - R*frac + 12);
+    x.fillText('~' + m + ' m' + (m===30?'+':''), cx + 3, cy - R*frac + 12);
   }
   // sweep + you
   x.strokeStyle='#16202e';
@@ -233,7 +244,7 @@ function drawRadar(){
     x.beginPath(); x.arc(px,py,6,0,Math.PI*2);
     x.fillStyle = col; x.fill();
     x.fillStyle = '#8da0b8'; x.font = '10px sans-serif';
-    x.fillText(st.rssi + ' dBm', px+9, py+3);
+    x.fillText('≈' + st.meters.toFixed(1) + ' m', px+9, py+3);
   }
   requestAnimationFrame(drawRadar);
 }
