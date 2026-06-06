@@ -24,6 +24,25 @@ If you capture **live** data in a public place: show an **on-site notice**,
 keep it **aggregate-only**, and don't store raw identifiers. That keeps you on
 the right side of UK GDPR / the ICO. The defaults here already do this.
 
+## 🪟 Windows laptop, no extra hardware (real WiFi, runs on the laptop itself)
+
+Counting silent pedestrians needs monitor mode, which Windows + a built-in Intel
+card can't do. But Windows *can* read every WiFi access point / hotspot in range
+and its live signal strength via the built-in `netsh` — real RF sensing of the
+room with zero hardware. Walk around and the heatmap shifts.
+
+```cmd
+run_windows.bat
+```
+
+Then open **http://127.0.0.1:8000** on the same laptop. (Manual equivalent:
+`set FOOTFALL_MODE=winscan` then `python -m uvicorn footfall.server:app`.)
+
+> Honest framing for the demo: this senses **WiFi sources** (routers, phone
+> hotspots, repeaters) — not every silent phone in someone's pocket. The
+> dashboard labels it "WiFi sources in range" in this mode. For true pedestrian
+> counting you need monitor mode (Linux or a USB adapter — see "Going live").
+
 ## Quick start (works with zero hardware)
 
 ```bash

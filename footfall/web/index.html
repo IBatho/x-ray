@@ -49,7 +49,7 @@
 
   <div class="grid">
     <div class="card">
-      <div class="label">People nearby (last 5 min)</div>
+      <div class="label" id="presentLabel">People nearby (last 5 min)</div>
       <div class="big" id="present">–</div>
       <div class="stat-row">
         <div class="stat"><div class="n" id="unique">–</div><div class="l">unique this window</div></div>
@@ -162,6 +162,9 @@ async function tick(){
     $('present').textContent = d.present;
     $('unique').textContent  = d.unique_since_salt;
     $('mode').textContent    = d.mode;
+    // Windows AP-scan mode senses radios, not silent pedestrians — label honestly.
+    $('presentLabel').textContent = d.mode === 'winscan'
+      ? 'WiFi sources in range (live)' : 'People nearby (last 5 min)';
     $('salt').textContent    = Math.round(d.salt_age_s);
     $('conv').innerHTML      = d.conversion_pct + '<span style="font-size:24px">%</span>';
     $('visitors').textContent = d.estimated_visitors;

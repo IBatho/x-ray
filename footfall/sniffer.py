@@ -115,8 +115,89 @@ class LiveSniffer:
         )
 
 
+def parse_netsh(text: str):
+    """Parse `netsh wlan show networks mode=bssid` output into
+    [(bssid, signal_percent), ...]. English Windows output assumed."""
+    results = []
+    current_bssid = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("BSSID"):
+            # "BSSID 1                 : 00:11:22:33:44:55"
+            parts = line.split(":", 1)
+            if len(parts) == 2:
+                current_bssid = parts[1].strip().lower()
+        elif line.startswith("Signal") and current_bssid:
+            # "Signal             : 84%"
+            pct = line.split(":", 1)[1].strip().rstrip("%")
+            try:
+                results.append((current_bssid, int(pct)))
+            except ValueError:
+                pass
+            current_bssid = None
+    return results
+
+
+class WindowsApScanner:
+    """Real WiFi sensing on Windows with NO extra hardware.
+
+    Uses the built-in `netsh wlan show networks mode=bssid` to read every
+    access point / hotspot radio in range and its signal strength, live. This
+    senses the RF environment around you (routers, phone hotspots, repeaters) —
+    it is NOT a silent pedestrian counter (that needs monitor mode), so label
+    it honestly. Walk around and the signal-strength heatmap shifts in real
+    time, which makes a strong, real demo on any Windows laptop.
+    """
+
+    def __init__(self, on_observe: Observer, interval_s: float = 4.0):
+        self.on_observe = on_observe
+        self.interval_s = interval_s
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    @staticmethod
+    def _pct_to_rssi(pct: int) -> int:
+        # Windows reports signal as 0-100%; map to a dBm-like scale.
+        return (pct // 2) - 100
+
+    @staticmethod
+    def _signal_to_zone(pct: int) -> str:
+        if pct >= 75:
+            return "right-here"
+        if pct >= 45:
+            return "nearby"
+        return "far-side"
+
+    def _scan_once(self):
+        import subprocess
+
+        out = subprocess.run(
+            ["netsh", "wlan", "show", "networks", "mode=bssid"],
+            capture_output=True, text=True, timeout=15,
+        )
+        return parse_netsh(out.stdout)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                for bssid, pct in self._scan_once():
+                    self.on_observe(bssid, self._pct_to_rssi(pct),
+                                    self._signal_to_zone(pct))
+            except Exception:
+                pass  # keep the demo alive even if a scan hiccups
+            self._stop.wait(self.interval_s)
+
+
 def make_sniffer(on_observe: Observer, mode: str, iface: str | None,
                  on_transaction=None):
+    if mode == "winscan":
+        return WindowsApScanner(on_observe)
     if mode == "live":
         if not iface:
             raise ValueError("live mode requires FOOTFALL_IFACE (a monitor-mode interface)")
