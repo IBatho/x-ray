@@ -116,25 +116,42 @@ class LiveSniffer:
 
 
 def parse_netsh(text: str):
-    """Parse `netsh wlan show networks mode=bssid` output into
-    [(bssid, signal_percent), ...]. English Windows output assumed."""
+    """Parse `netsh wlan show networks mode=bssid` into a list of dicts:
+    {bssid, ssid, signal (0-100), band, stations}. English Windows assumed.
+
+    `stations` is netsh's "Connected Stations" count — how many devices are
+    associated to that AP right now, a real crowd proxy. Missing on older
+    Windows; defaults to 0.
+    """
     results = []
-    current_bssid = None
+    current_ssid = ""
+    rec = None
     for raw in text.splitlines():
         line = raw.strip()
-        if line.startswith("BSSID"):
+        # "SSID 1 : MyNetwork"  (but not the "BSSID" lines)
+        if line.startswith("SSID ") and ":" in line:
+            current_ssid = line.split(":", 1)[1].strip()
+        elif line.startswith("BSSID"):
             # "BSSID 1                 : 00:11:22:33:44:55"
-            parts = line.split(":", 1)
-            if len(parts) == 2:
-                current_bssid = parts[1].strip().lower()
-        elif line.startswith("Signal") and current_bssid:
-            # "Signal             : 84%"
-            pct = line.split(":", 1)[1].strip().rstrip("%")
-            try:
-                results.append((current_bssid, int(pct)))
-            except ValueError:
-                pass
-            current_bssid = None
+            mac = line.split(":", 1)[1].strip().lower()
+            rec = {"bssid": mac, "ssid": current_ssid,
+                   "signal": 0, "band": "", "stations": 0}
+            results.append(rec)
+        elif rec is not None:
+            if line.startswith("Signal"):
+                pct = line.split(":", 1)[1].strip().rstrip("%")
+                try:
+                    rec["signal"] = int(pct)
+                except ValueError:
+                    pass
+            elif line.startswith("Band"):
+                rec["band"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Connected Stations"):
+                val = line.split(":", 1)[1].strip()
+                try:
+                    rec["stations"] = int(val)
+                except ValueError:
+                    pass
     return results
 
 
@@ -149,9 +166,11 @@ class WindowsApScanner:
     time, which makes a strong, real demo on any Windows laptop.
     """
 
-    def __init__(self, on_observe: Observer, interval_s: float = 4.0):
+    def __init__(self, on_observe: Observer, interval_s: float = 4.0,
+                 on_meta=None):
         self.on_observe = on_observe
         self.interval_s = interval_s
+        self.on_meta = on_meta
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -186,18 +205,30 @@ class WindowsApScanner:
     def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                for bssid, pct in self._scan_once():
-                    self.on_observe(bssid, self._pct_to_rssi(pct),
-                                    self._signal_to_zone(pct))
+                nets = self._scan_once()
+                total_stations = 0
+                for n in nets:
+                    pct = n["signal"]
+                    label = n["ssid"] or "(hidden)"
+                    if n["band"]:
+                        label += " · " + n["band"]
+                    self.on_observe(n["bssid"], self._pct_to_rssi(pct),
+                                    self._signal_to_zone(pct), label)
+                    total_stations += n["stations"]
+                if self.on_meta:
+                    self.on_meta({
+                        "connected_stations": total_stations,
+                        "networks_visible": len(nets),
+                    })
             except Exception:
                 pass  # keep the demo alive even if a scan hiccups
             self._stop.wait(self.interval_s)
 
 
 def make_sniffer(on_observe: Observer, mode: str, iface: str | None,
-                 on_transaction=None):
+                 on_transaction=None, on_meta=None):
     if mode == "winscan":
-        return WindowsApScanner(on_observe)
+        return WindowsApScanner(on_observe, on_meta=on_meta)
     if mode == "live":
         if not iface:
             raise ValueError("live mode requires FOOTFALL_IFACE (a monitor-mode interface)")

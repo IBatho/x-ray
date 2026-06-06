@@ -23,10 +23,11 @@ counter = FootfallCounter()
 _mode = os.environ.get("FOOTFALL_MODE", "sim")
 _iface = os.environ.get("FOOTFALL_IFACE")
 _sniffer = make_sniffer(
-    lambda mac, rssi, zone: counter.observe(mac, rssi, zone),
+    lambda mac, rssi, zone, label="": counter.observe(mac, rssi, zone, label),
     mode=_mode,
     iface=_iface,
     on_transaction=counter.add_transaction,
+    on_meta=counter.set_extra,
 )
 
 _WEB = Path(__file__).parent / "web" / "index.html"

@@ -33,6 +33,7 @@ class _Device:
     zone: str
     first_zone: str
     rssi: int
+    label: str = ""
     # Accumulated dwell time per zone for this device, this salt window.
     dwell: dict = field(default_factory=lambda: defaultdict(float))
 
@@ -66,6 +67,9 @@ class FootfallCounter:
     # Conversion: externally supplied transaction count for the session.
     _transactions: int = field(default=0, init=False)
 
+    # Extra aggregate fields a source may report (e.g. connected_stations).
+    _extra: dict = field(default_factory=dict, init=False)
+
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
 
     def _maybe_rotate_salt(self, now: float) -> None:
@@ -78,8 +82,10 @@ class FootfallCounter:
     def _hash(self, mac: str) -> str:
         return hashlib.sha256(self._salt + mac.encode("utf-8")).hexdigest()[:16]
 
-    def observe(self, mac: str, rssi: int = -70, zone: str = "main") -> None:
-        """Record one probe-request sighting. `mac` is hashed and discarded."""
+    def observe(self, mac: str, rssi: int = -70, zone: str = "main",
+                label: str = "") -> None:
+        """Record one probe-request sighting. `mac` is hashed and discarded.
+        `label` is an optional non-identifying display name (e.g. WiFi SSID)."""
         now = time.time()
         with self._lock:
             self._maybe_rotate_salt(now)
@@ -88,7 +94,7 @@ class FootfallCounter:
             if dev is None:
                 # New arrival.
                 dev = _Device(first_seen=now, last_seen=now, zone=zone,
-                              first_zone=zone, rssi=rssi)
+                              first_zone=zone, rssi=rssi, label=label or "")
                 self._devices[h] = dev
                 self._arrivals += 1
                 self._first_zone[zone] += 1
@@ -102,7 +108,14 @@ class FootfallCounter:
                     dev.zone = zone
                 dev.last_seen = now
                 dev.rssi = rssi
+                if label:
+                    dev.label = label
             self._total_seen_hashes.add(h)
+
+    def set_extra(self, data: dict) -> None:
+        """Merge in extra aggregate fields reported by a source."""
+        with self._lock:
+            self._extra.update(data)
 
     def set_transactions(self, n: int) -> None:
         with self._lock:
@@ -142,7 +155,7 @@ class FootfallCounter:
             # linked across salt windows or back to a device. rssi drives the
             # signal-based distance; zone gives the colour bucket.
             sources = [
-                {"id": h, "rssi": d.rssi, "zone": d.zone}
+                {"id": h, "rssi": d.rssi, "zone": d.zone, "label": d.label}
                 for h, d in self._devices.items()
             ]
 
@@ -180,7 +193,7 @@ class FootfallCounter:
             estimated_visitors = max(1, round(self._arrivals * self.visitor_calibration))
             conversion = round(100 * self._transactions / estimated_visitors, 1)
 
-            return {
+            data = {
                 "present": present,
                 "sources": sources,
                 "per_zone": dict(per_zone),
@@ -197,3 +210,5 @@ class FootfallCounter:
                 "salt_age_s": round(now - self._salt_set_at, 1),
                 "ts": int(now),
             }
+            data.update(self._extra)
+            return data

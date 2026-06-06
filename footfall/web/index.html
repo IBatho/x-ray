@@ -52,7 +52,7 @@
       <div class="label" id="presentLabel">People nearby (last 5 min)</div>
       <div class="big" id="present">–</div>
       <div class="stat-row">
-        <div class="stat"><div class="n" id="unique">–</div><div class="l">unique this window</div></div>
+        <div class="stat"><div class="n" id="stations">–</div><div class="l" id="stationsLabel">unique this window</div></div>
         <div class="stat"><div class="n" id="mode">–</div><div class="l">source</div></div>
         <div class="stat"><div class="n" id="salt">–</div><div class="l">salt age (s)</div></div>
       </div>
@@ -199,7 +199,7 @@ function updateRadar(sources){
       angle: hashAngle(s.id), r: 1.0, targetR: 1.0 });
     st.meters = rssiToMeters(s.rssi);
     st.targetR = metersToRadius(st.meters);
-    st.zone = s.zone; st.rssi = s.rssi;
+    st.zone = s.zone; st.rssi = s.rssi; st.label = s.label || '';
   }
   for (const id of Object.keys(radarState)) if(!seen.has(id)) delete radarState[id];
   $('radarCount').textContent = sources.length + ' sources';
@@ -243,8 +243,12 @@ function drawRadar(){
     x.fillStyle = col + '22'; x.fill();           // glow
     x.beginPath(); x.arc(px,py,6,0,Math.PI*2);
     x.fillStyle = col; x.fill();
+    if (st.label){
+      x.fillStyle = '#cdd9e8'; x.font = 'bold 11px sans-serif';
+      x.fillText(st.label, px+9, py-3);
+    }
     x.fillStyle = '#8da0b8'; x.font = '10px sans-serif';
-    x.fillText('≈' + st.meters.toFixed(1) + ' m', px+9, py+3);
+    x.fillText('≈' + st.meters.toFixed(1) + ' m', px+9, py+10);
   }
   requestAnimationFrame(drawRadar);
 }
@@ -255,7 +259,14 @@ async function tick(){
   try {
     const r = await fetch('/api/stats'); const d = await r.json();
     $('present').textContent = d.present;
-    $('unique').textContent  = d.unique_since_salt;
+    // Real crowd proxy on Windows: devices associated to nearby APs.
+    if (d.connected_stations != null){
+      $('stations').textContent = '≈' + d.connected_stations;
+      $('stationsLabel').textContent = 'devices on nearby WiFi';
+    } else {
+      $('stations').textContent = d.unique_since_salt;
+      $('stationsLabel').textContent = 'unique this window';
+    }
     $('mode').textContent    = d.mode;
     // Windows AP-scan mode senses radios, not silent pedestrians — label honestly.
     $('presentLabel').textContent = d.mode === 'winscan'
