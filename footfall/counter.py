@@ -137,6 +137,15 @@ class FootfallCounter:
                 per_zone[d.zone] += 1
             present = len(self._devices)
 
+            # Per-source list for the radar map. The id is the ROTATING salted
+            # hash (never the real MAC), so it stays privacy-safe: it can't be
+            # linked across salt windows or back to a device. rssi drives the
+            # signal-based distance; zone gives the colour bucket.
+            sources = [
+                {"id": h, "rssi": d.rssi, "zone": d.zone}
+                for h, d in self._devices.items()
+            ]
+
             if not self._trend or now - self._trend[-1][0] >= 5:
                 self._trend.append((now, present))
             cutoff = now - self.trend_minutes * 60
@@ -173,6 +182,7 @@ class FootfallCounter:
 
             return {
                 "present": present,
+                "sources": sources,
                 "per_zone": dict(per_zone),
                 "unique_since_salt": len(self._total_seen_hashes),
                 "trend": trend,

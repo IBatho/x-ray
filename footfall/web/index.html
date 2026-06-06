@@ -66,6 +66,20 @@
       <canvas id="trend"></canvas>
     </div>
 
+    <div class="card" style="grid-column:1 / -1">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="label">Live radar — WiFi sources around you</div>
+        <span class="pill" id="radarCount">–</span>
+      </div>
+      <canvas id="radar" style="height:420px"></canvas>
+      <div class="sub" style="font-size:11px;margin-top:6px">
+        You are at the centre. Distance = live signal strength (stronger = closer);
+        rings are signal bands. Direction is illustrative — a single WiFi antenna
+        can't sense bearing — but distances are real, so <b>walk around and watch the
+        dots glide in and out</b>. Colour = signal band.
+      </div>
+    </div>
+
     <div class="card">
       <div class="label">Zone heatmap (who's where now)</div>
       <div class="zones" id="zones"></div>
@@ -155,6 +169,76 @@ function renderFlows(flows){
     </div>`).join('') || '<div class="sub">watching for movement…</div>';
 }
 
+// ---- Live radar ---------------------------------------------------------
+const ZONE_COLOR = { 'right-here':'#23d3a3', 'nearby':'#6ad', 'far-side':'#c98bff' };
+const radarState = {};          // id -> {angle, r, targetR, zone, rssi}
+
+function hashAngle(id){         // stable pseudo-direction per source
+  let h = 0; for (let i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i)) >>> 0;
+  return (h % 360) * Math.PI / 180;
+}
+function rssiToRadius(rssi){    // stronger signal -> closer to centre
+  const strength = Math.max(0, Math.min(1, (rssi + 95) / 55)); // -95..-40
+  return 0.10 + (1 - strength) * 0.86;   // 0=centre .. 1=edge
+}
+
+function updateRadar(sources){
+  const seen = new Set();
+  for (const s of sources){
+    seen.add(s.id);
+    const st = radarState[s.id] || (radarState[s.id] = {
+      angle: hashAngle(s.id), r: 1.0, targetR: 1.0 });
+    st.targetR = rssiToRadius(s.rssi);
+    st.zone = s.zone; st.rssi = s.rssi;
+  }
+  for (const id of Object.keys(radarState)) if(!seen.has(id)) delete radarState[id];
+  $('radarCount').textContent = sources.length + ' sources';
+}
+
+function drawRadar(){
+  const c = $('radar'), dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = w*dpr; c.height = h*dpr;
+  const x = c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
+  const cx = w/2, cy = h/2, R = Math.min(w,h)/2 - 18;
+
+  // rings + band labels
+  x.strokeStyle = '#1c2532'; x.fillStyle = '#4a5870'; x.font = '10px sans-serif';
+  const bands = [['right-here',0.33],['nearby',0.66],['far-side',1.0]];
+  for (const [name,frac] of bands){
+    x.beginPath(); x.arc(cx,cy,R*frac,0,Math.PI*2); x.stroke();
+    x.fillText(name, cx + 3, cy - R*frac + 12);
+  }
+  // sweep + you
+  x.strokeStyle='#16202e';
+  x.beginPath(); x.moveTo(cx-R,cy); x.lineTo(cx+R,cy); x.stroke();
+  x.beginPath(); x.moveTo(cx,cy-R); x.lineTo(cx,cy+R); x.stroke();
+  const t = Date.now()/1000;
+  const pulse = 6 + 3*Math.sin(t*3);
+  x.beginPath(); x.arc(cx,cy,pulse+8,0,Math.PI*2);
+  x.fillStyle='rgba(35,211,163,.12)'; x.fill();
+  x.beginPath(); x.arc(cx,cy,7,0,Math.PI*2); x.fillStyle='#eafff7'; x.fill();
+  x.fillStyle='#9fe9d3'; x.font='bold 11px sans-serif';
+  x.fillText('YOU (this laptop)', cx+12, cy+4);
+
+  // dots (eased toward target radius so movement glides)
+  for (const id in radarState){
+    const st = radarState[id];
+    st.r += (st.targetR - st.r) * 0.12;
+    const px = cx + Math.cos(st.angle) * st.r * R;
+    const py = cy + Math.sin(st.angle) * st.r * R;
+    const col = ZONE_COLOR[st.zone] || '#6ad';
+    x.beginPath(); x.arc(px,py,16,0,Math.PI*2);
+    x.fillStyle = col + '22'; x.fill();           // glow
+    x.beginPath(); x.arc(px,py,6,0,Math.PI*2);
+    x.fillStyle = col; x.fill();
+    x.fillStyle = '#8da0b8'; x.font = '10px sans-serif';
+    x.fillText(st.rssi + ' dBm', px+9, py+3);
+  }
+  requestAnimationFrame(drawRadar);
+}
+requestAnimationFrame(drawRadar);
+
 let pulseOn = true;
 async function tick(){
   try {
@@ -169,6 +253,7 @@ async function tick(){
     $('conv').innerHTML      = d.conversion_pct + '<span style="font-size:24px">%</span>';
     $('visitors').textContent = d.estimated_visitors;
     $('txns').textContent    = d.transactions;
+    updateRadar(d.sources || []);
     renderZones(d.per_zone);
     renderBars('firstzone', d.first_zone, '%');
     renderBars('dwell', d.avg_dwell_s, 's');

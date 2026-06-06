@@ -1,8 +1,9 @@
 """FastAPI app: runs a sniffer in the background, serves the live dashboard.
 
 Run:  uvicorn footfall.server:app --reload
-Env:  FOOTFALL_MODE = sim (default) | live
+Env:  FOOTFALL_MODE = sim (default) | live | winscan
       FOOTFALL_IFACE = wlan0mon   (required when MODE=live)
+      winscan: real WiFi access-point scan on Windows, no extra hardware.
 """
 
 from __future__ import annotations
